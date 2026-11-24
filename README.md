@@ -1,5 +1,7 @@
 # 居家水分監測（課堂作業原型）
 
+[English version](#home-fluid-monitoring-class-project-prototype)
+
 給血液透析病人在家使用的水分監測網頁原型。病人輸入兩種非侵入式量測的結果（ReDS 背心的肺水 %LW、MoistureMeter 的皮膚水分），加上體重、血壓和喘的程度，系統依文獻訂的規則計分，給出綠、黃、紅燈號，並畫出水分變化趨勢。
 
 **線上瀏覽：** https://tommy880422.github.io/dialysis-fluid-monitor/
@@ -29,6 +31,8 @@
 
 綠燈 0–1 分、黃燈 2–3 分、紅燈 ≥ 4 分。前 6 次透析後量測為校正期，只用安全底線判讀。
 
+<a name="references"></a>
+
 ## 主要參考文獻
 
 - Caughey MC, et al. *BMC Nephrol.* 2025;26:373. doi:10.1186/s12882-025-04306-w
@@ -46,3 +50,38 @@
 - Mayrovitz HN. *Clin Physiol Funct Imaging.* 2025;45(1):e12916. PMID 39550685
 
 數字取自文獻摘要。多數門檻來自心衰竭研究，用在透析病人的證據有限；個人化規則（校正期、2 倍標準差）屬於作業假設，需要實際資料驗證。
+
+## Home Fluid Monitoring (Class Project Prototype)
+
+This prototype helps people on hemodialysis track fluid status at home. Users enter two noninvasive measurements (lung fluid percentage, or %LW, from a ReDS vest and skin moisture from a MoistureMeter), along with their weight, blood pressure, and shortness-of-breath rating. The prototype applies scoring rules drawn from the literature, displays a green, yellow, or red status, and charts changes over time.
+
+[Open the demo](https://tommy880422.github.io/dialysis-fluid-monitor/)
+
+> This class project demonstrates a set of scoring rules and cannot replace clinical judgment. The demo includes sample data. Any data you enter stays in your browser.
+
+### Features
+
+- **Home** shows the current status, days since the last dialysis session, a reminder when the gap between sessions is long, and progress toward establishing a personal baseline.
+- **Measurement wizard** guides users through seven steps, including a pre-measurement check with a 15-minute countdown if they are hot or sweating, weight, blood pressure and pulse, three skin moisture readings, a ReDS lung fluid reading, and a shortness-of-breath rating. It calculates the coefficient of variation (CV), a measure of how much the skin moisture readings vary, and prompts users to repeat them if the CV exceeds 10%.
+- **Results** shows the status, suggestions, and the points assigned by each rule.
+- **Trends** charts lung fluid, skin moisture, and weight, with dialysis days and personal baseline ranges marked.
+- **History and scoring criteria** show past records and the rules, with PubMed links and an evidence rating for each rule.
+- **Settings** includes patient-entered information, clinician settings (demo password `1234`), and an automatically calculated personal baseline.
+
+### Scoring summary
+
+| Condition | Points |
+|---|---|
+| Lung fluid (%LW) ≥ 35% (safety threshold) | +2 |
+| Lung fluid (%LW) 26.5–34.9% | +1 |
+| Lung fluid exceeds the personal baseline by at least the individual threshold (4 percentage points or twice the personal standard deviation, whichever is higher) | +1 |
+| Weight is ≥ 4 kg above target (safety threshold) or 3–4 kg above target | +2 or +1, respectively |
+| Skin moisture is ≥ 20% above baseline and at least one other indicator scores points | +1 |
+| Shortness-of-breath rating is 4–6 or at least 2 points above the usual rating set by a clinician | +2 |
+| Shortness-of-breath rating is ≥ 7 | Red status immediately |
+
+Green corresponds to 0–1 points, yellow to 2–3 points, and red to 4 or more points. During calibration, the prototype uses only the safety thresholds for the first six post-dialysis measurements.
+
+### References and limitations
+
+Both versions use the same [reference list](#references). The numeric values come from published abstracts. Most thresholds come from heart failure studies, and evidence for their use in people on dialysis is limited. The personalized rules, including the calibration period and the use of twice the standard deviation, are class project assumptions that need validation with real data.

@@ -34,6 +34,8 @@
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f);font-size:17px;line-height:1.4;-webkit-font-smoothing:antialiased}
 .wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px calc(120px + env(safe-area-inset-bottom,0px))}
+.language-picker{display:flex;justify-content:flex-end;margin-bottom:12px}
+.language-picker .seg button{min-height:44px;padding-inline:12px}
 h1,h2,h3,p{margin:0}
 h1{font-size:34px;font-weight:700;letter-spacing:.01em;line-height:1.2;text-wrap:balance}
 h2{font-size:22px;font-weight:700;text-wrap:balance}
@@ -136,13 +138,327 @@ svg.chart text{fill:var(--muted);font-family:var(--f-num);font-size:11px}
 </head>
 <body>
 
-<div class="wrap" id="app"></div>
+<div class="wrap">
+  <div class="language-picker">
+    <div class="seg" id="language" role="group" aria-label="語言">
+      <button type="button" data-lang="zh-Hant" lang="zh-Hant" class="on" aria-pressed="true">繁體中文</button>
+      <button type="button" data-lang="en" lang="en" aria-pressed="false">English</button>
+    </div>
+  </div>
+  <main id="app"></main>
+</div>
 <nav class="tabbar" id="nav" aria-label="主要導覽"></nav>
 
 <script>
 "use strict";
+
+const EN = {
+  "居家水分監測": "Home Fluid Monitoring",
+  "主要導覽": "Main navigation",
+  "語言": "Language",
+  "、": ", ",
+  "身高不在 155–190 cm": "Height is outside 155–190 cm",
+  "BMI {0} 不在 22–38": "BMI {0} is outside 22–38",
+  "右胸有心律調節器": "Pacemaker on the right side of the chest",
+  "肺水 %LW": "Lung fluid (%LW)",
+  "這次沒有量": "No reading for this measurement",
+  "不適用 ReDS：": "ReDS unavailable: ",
+  "{0}%（只顯示，不計分）": "{0}% (recorded only)",
+  "設定中標示有肋膜積水，ReDS 數值可能假性偏高，所以這次肺水不列入計分。": "Your settings indicate pleural effusion, which may make ReDS read high. Lung fluid is excluded from this score.",
+  "ReDS 使用資格不符，肺水不列入計分。": "The ReDS eligibility criteria are unmet, so lung fluid is excluded from this score.",
+  "肺水 %LW ≥ 35%（安全底線）": "Lung fluid (%LW) ≥ 35% (safety threshold)",
+  "肺水 %LW 26.5–34.9%": "Lung fluid (%LW) 26.5–34.9%",
+  "{0}%（透析族群門檻）": "{0}% (dialysis study threshold)",
+  "{0}%（校正期只看 35% 安全底線）": "{0}% (only the 35% safety threshold applies during calibration)",
+  "{0}%，低於 26.5%": "{0}%, below 26.5%",
+  "您的波動較大，用 2 倍波動 {0} 點": "twice your usual variation ({0} points) because it is larger",
+  "儀器誤差 4 點（您的 2 倍波動 {0} 點較小）": "4 points for device error because twice your usual variation is smaller ({0} points)",
+  "肺水比個人基準高 ≥ {0} 點": "Lung fluid ≥ {0} points above personal baseline",
+  "基準 {0}%，差 {1}{2} 點；門檻取{3}": "Baseline {0}%. Difference {1}{2} points. The threshold uses {3}.",
+  "比目標體重多 ≥ 4 kg（安全底線）": "≥ 4 kg above target weight (safety threshold)",
+  "+{0} kg（目標 {1} kg）": "+{0} kg (target {1} kg)",
+  "比目標體重多": "Weight above target",
+  "，校正期不用 3 kg 門檻": ". The 3 kg threshold is skipped during calibration",
+  "{0}{1} kg（目標 {2} kg）{3}": "{0}{1} kg (target {2} kg){3}",
+  "喘的程度 ≥ 7 分": "Breathlessness rating ≥ 7",
+  "{0} 分，直接紅燈": "{0} points triggers an immediate red status",
+  "喘比平常多 ≥ 2 分": "Breathlessness ≥ 2 points above usual",
+  "今天 {0} 分，平常 {1} 分（醫護設定）": "Today {0}, usual {1} (set by your care team)",
+  "喘的程度 4–6 分": "Breathlessness rating 4–6",
+  "{0} 分": "{0} points",
+  "皮膚水分比基準高 ≥ 20%": "Skin moisture ≥ 20% above baseline",
+  "，沒有其他指標有分，不計入": ". Excluded because no other indicator scored points",
+  "平均 {0}，基準 {1}（{2}{3}%）{4}": "Average {0}, baseline {1} ({2}{3}%){4}",
+  "皮膚水分": "Skin moisture",
+  "平均 {0}（校正期，只記錄）": "Average {0} (recorded only during calibration)",
+  "血壓、心跳": "Blood pressure and pulse",
+  "{0}/{1} mmHg，{2} 次/分（只記錄，不計分）": "{0}/{1} mmHg, {2} bpm (recorded only)",
+  "校正期（透析後量測已完成 {0}／{1} 次）：只用安全底線判讀，也就是肺水 ≥ 35%、體重多 ≥ 4 kg、喘的程度。": "Calibration ({0}/{1} post-dialysis readings). Only the safety thresholds apply, covering lung fluid ≥ 35%, weight ≥ 4 kg above target, and breathlessness.",
+  "這次 ReDS 由「{0}」量，平常是「{1}」。換人量時數值較不穩定。": "“{0}” took this ReDS reading. “{1}” is the usual operator. Readings can vary more when the operator changes.",
+  "綠燈": "Green",
+  "狀況穩定": "Stable",
+  "黃燈": "Yellow",
+  "需要留意": "Needs attention",
+  "紅燈": "Red",
+  "請今天聯絡透析室": "Contact your dialysis unit today",
+  "您很喘。請立即就醫或撥 119。": "You are very short of breath. Seek medical care immediately or call 119.",
+  "請今天聯絡透析室，告訴護理師這次的數值。很喘或胸悶請撥 119。": "Contact your dialysis unit today and tell the nurse your readings. Call 119 if you are very short of breath or have chest tightness.",
+  "已經連續兩次黃燈。請聯絡透析室。": "You have two yellow results in a row. Contact your dialysis unit.",
+  "今天少喝水、少吃鹹，明天同一時段再量一次。": "Drink less water and eat less salty food today. Measure again at the same time tomorrow.",
+  "透析後數值已記錄，會用來更新您的個人基準。": "Your post-dialysis readings were recorded and will help update your personal baseline.",
+  "狀況穩定，照平常的喝水量即可。": "Your status is stable. Keep to your usual water intake.",
+  "首頁": "Home",
+  "量測": "Measure",
+  "趨勢": "Trends",
+  "紀錄": "History",
+  "標準": "Rules",
+  "課堂作業原型，判讀規則僅供示範，不能取代醫療判斷。很喘或胸悶請撥 119。": "Class project prototype. The scoring rules are for demonstration and cannot replace clinical judgment. In Taiwan, call 119 if you are very short of breath or have chest tightness.",
+  "總分": "Total",
+  "距離上次透析": "Time since last dialysis",
+  "今天": "Today",
+  "{0} 天": "{0} days",
+  "1 天": "1 day",
+  "長間隔期間": "Long gap between sessions",
+  "體液最容易累積，今天一定要量": "Fluid can build up most easily during this gap. Take a reading today.",
+  "個人基準建立中": "Establishing your baseline",
+  "校正期只用安全底線判讀": "Only safety thresholds apply during calibration",
+  "{0}／{1} 次": "{0}/{1} readings",
+  "個人基準已建立": "Personal baseline established",
+  "肺水基準 {0}・門檻 ±{1} 點": "Lung fluid baseline {0}, threshold ±{1} points",
+  "ReDS 已關閉": "ReDS unavailable",
+  "肺水只顯示、不計分": "Lung fluid is recorded only",
+  "設定中標示有肋膜積水": "Your settings indicate pleural effusion",
+  "設定": "Settings",
+  "上次量測 {0} {1}・點一下查看計分明細": "Last reading {0} at {1}. Tap for scoring details.",
+  "還沒有量測紀錄": "No readings yet",
+  "按下方按鈕開始第一次量測": "Use the button below to take your first reading",
+  "透析": "Dialysis",
+  "目前是示範資料・前往設定": "View demo data settings",
+  "開始今天的量測": "Start today's measurement",
+  "輸入": "Enter",
+  "請先坐著休息 15 分鐘再量": "Sit and rest for 15 minutes before measuring",
+  "休息好了，繼續": "Continue after resting",
+  "示範用：略過等待": "Skip wait (demo)",
+  "剛洗澡、運動，或覺得很熱、在流汗嗎？": "Have you just showered or exercised, or are you hot or sweating?",
+  "熱和流汗會讓皮膚水分讀數暫時偏高。": "Heat and sweating can temporarily increase your skin moisture readings.",
+  "是": "Yes",
+  "否": "No",
+  "這次是哪一種量測？": "What kind of measurement is this?",
+  "在家量測": "At home",
+  "兩次透析之間": "Between dialysis sessions",
+  "透析後量測": "Post-dialysis",
+  "用來建立個人基準": "Used to establish your personal baseline",
+  "體重": "Weight",
+  "起床、上完廁所後，穿差不多的衣服量。目標體重 {0} kg。": "Weigh yourself after getting up and using the bathroom, wearing similar clothing each time. Your target weight is {0} kg.",
+  "收縮壓": "Systolic pressure",
+  "舒張壓": "Diastolic pressure",
+  "心跳": "Pulse",
+  "次/分": "bpm",
+  "這兩項只記錄，不列入判讀分數。": "Both measurements are recorded only.",
+  "右手": "right",
+  "左手": "left",
+  "皮膚水分（連量 3 次）": "Skin moisture (3 readings)",
+  "第 {0} 次": "Reading {0}",
+  "量 {0}手腕內側、皮膚記號的位置（沒有瘻管的那一側）。探頭輕貼皮膚，壓力燈亮就放鬆一點。": "Measure at the marked spot on the inner {0} wrist, on the side without a fistula. Hold the probe gently against the skin and ease the pressure if the pressure light comes on.",
+  "您不適用 ReDS（{0}），這一步跳過。": "ReDS is unavailable for you ({0}). Skip this step.",
+  "您有肋膜積水，這次數值只會顯示、不計分。": "You have pleural effusion, so this reading will be recorded only.",
+  "ReDS 肺水": "ReDS lung fluid",
+  "今天誰幫忙量": "Who took today's reading?",
+  "例如：女兒": "e.g. Daughter",
+  "坐直，背心的感測片貼在右胸前和背後。": "Sit upright with the vest sensors against the front and back of the right side of your chest.",
+  "拉緊側邊綁帶，讓感測片貼住身體。": "Tighten the side straps so the sensors touch your body.",
+  "按開始，安靜不說話約 1 分鐘。": "Press Start and sit quietly without talking for about a minute.",
+  "完全不喘": "None",
+  "有點喘": "Mild",
+  "很喘": "Severe",
+  "極度喘": "Extreme",
+  "很喘請不要等，立即就醫或撥 119。": "If you are very short of breath, seek medical care immediately or call 119.",
+  "今天喘不喘？": "How short of breath are you today?",
+  "1 分是完全不喘，10 分是極度喘。": "1 means no breathlessness and 10 means extreme breathlessness.",
+  "完成": "Finish",
+  "下一步": "Next",
+  "取消量測": "Cancel measurement",
+  "第 {0} 步，共 {1} 步・{2}": "Step {0} of {1} · {2}",
+  "量測前檢查": "Before measuring",
+  "量測類型": "Measurement type",
+  "血壓心跳": "Blood pressure and pulse",
+  "喘的程度": "Breathlessness",
+  "上一步": "Back",
+  "請輸入體重（kg）。": "Enter your weight (kg).",
+  "請輸入收縮壓、舒張壓和心跳。": "Enter your systolic pressure, diastolic pressure, and pulse.",
+  "請輸入 3 次讀數。": "Enter all three readings.",
+  "三次讀數差太多（CV > 10%）。請在同一點重量 3 次，再輸入新的數字。": "The readings vary too much (CV > 10%). Take three new readings at the same spot and enter them.",
+  "請輸入 ReDS 顯示的肺水百分比。": "Enter the lung fluid percentage shown by ReDS.",
+  "請選一個分數。": "Select a rating.",
+  "：差太多，請重量": " · Readings vary too much. Measure again.",
+  "：讀數穩定": " · Readings are consistent",
+  "平均": "Average",
+  "平常是「{0}」量。換人量時數值較不穩定，系統會記下這次換人。": "“{0}” is the usual ReDS operator. Readings can vary more when someone else takes them. The change will be logged.",
+  "返回": "Back",
+  "判讀結果": "Results",
+  "還沒有量測紀錄。": "No readings yet.",
+  "這次皮膚水分三次讀數差太多，已重量。": "The three skin moisture readings varied too much and were repeated.",
+  "返回紀錄": "Back to history",
+  "{0}（{1}）{2}・{3}": "{0} ({1}) {2} · {3}",
+  "{0} {1}：{2} {3}（{4}）": "{0} {1}: {2} {3} ({4})",
+  "喘的程度 ≥ 7 分，直接紅燈": "Breathlessness ≥ 7 triggers an immediate red status",
+  "綠燈 0–1 分・黃燈 2–3 分・紅燈 4 分以上": "Green 0–1 points · Yellow 2–3 points · Red 4 or more points",
+  "計分明細": "Scoring details",
+  "計分是怎麼來的？": "How is the score calculated?",
+  "建議": "Recommendation",
+  "看趨勢": "View trends",
+  "肺水": "Lung fluid",
+  "目標": "Target",
+  "資料還不夠畫圖。": "More readings are needed to draw the chart.",
+  "{0}趨勢圖": "{0} trend chart",
+  "{0}% ± {1} 點": "{0}% ± {1} points",
+  "建立中 {0}／{1}": "In progress {0}/{1}",
+  "目標到 +3 kg": "Target to +3 kg",
+  "目標 {0} kg": "Target {0} kg",
+  "無": "None",
+  "看紀錄": "View history",
+  "最近兩週": "Last two weeks",
+  "個人基準範圍": "Personal baseline range",
+  "參考線": "Reference lines",
+  "透析後肺水下降、兩次透析之間慢慢回升是正常的。超出藍色範圍、或越過 35% 虛線，才需要留意。": "Lung fluid typically falls after dialysis and gradually rises between sessions. Pay attention if it leaves the blue range or crosses the dashed 35% line.",
+  "皮膚水分一天中會有約 4% 的變動，所以只當輔助參考，不能單獨決定燈號。": "Skin moisture varies by about 4% during the day. It supports the assessment but cannot determine the status on its own.",
+  "體重超過目標 3 kg 開始計分，超過 4 kg 計 2 分。": "Weight starts to score at 3 kg above target and scores 2 points at 4 kg above target.",
+  "透析日": "Dialysis day",
+  "等 15 分": "Waited 15 min",
+  "CV 高已重量": "Repeated after high CV",
+  "換施測者": "Different operator",
+  "肺水 {0}{1}・皮膚 {2}・體重 {3} kg・喘 {4}{5}": "Lung fluid {0}{1} · Skin {2} · Weight {3} kg · Breathlessness {4}{5}",
+  "透析後": "Post-dialysis",
+  "在家": "At home",
+  "共 {0} 筆": "Total readings: {0}",
+  "點一筆查看判讀明細。": "Tap a reading for scoring details.",
+  "文獻直接支持": "Directly supported",
+  "由文獻推論": "Inferred from research",
+  "作業假設": "Class project assumption",
+  "肺水 %LW ≥ 35%": "Lung fluid (%LW) ≥ 35%",
+  "心衰竭出院目標（{0}）、楔壓升高門檻 34%（{1}）": "Heart failure discharge target ({0}) and 34% threshold for elevated wedge pressure ({1})",
+  "透析病人辨識過量水分 ≥ 2.5 L 的門檻（{0}，115 人）": "Threshold for identifying ≥ 2.5 L of excess fluid in people on dialysis ({0}, 115 participants)",
+  "肺水比個人基準高 ≥ 個人門檻": "Lung fluid at or above the individual threshold",
+  "門檻 = 4 點或 2 倍個人波動，取較大者。4 點超過 ReDS 與 CT 的平均差 3.75 點（{0}）": "Use 4 points or twice the personal variation, whichever is higher. Four points exceeds the 3.75-point average difference between ReDS and CT ({0}).",
+  "比目標體重多 ≥ 4 kg": "≥ 4 kg above target weight",
+  "增重 ≥ 4 kg 心血管死亡 HR 1.25（{0}）": "Weight gain ≥ 4 kg was associated with a cardiovascular mortality hazard ratio of 1.25 ({0}).",
+  "比目標體重多 3–4 kg": "3–4 kg above target weight",
+  "風險隨增重逐級上升，但沒有單一切點（同上）": "Risk rose with weight gain across ranges, with no single cutoff (same study).",
+  "大於一天內變動約 4%、量測 CV 約 6%；只有在其他指標有分時才計入": "Exceeds daily variation of about 4% and a measurement CV of about 6%. Counts only if another indicator scores points.",
+  "喘的程度 4–6 分（或比平常多 ≥ 2 分）": "Breathlessness 4–6 (or ≥ 2 points above usual)",
+  "Caughey 2025 的病人幾乎都是 1 分，沒有切點可依；醫護設定「平常的喘分數」後改用相對值": "Almost everyone in Caughey 2025 rated their breathlessness as 1, so the study gives no cutoff. A usual rating set by the care team is used for comparison when available.",
+  "安全考量": "Safety consideration",
+  "不計分": "Unscored",
+  "Caughey 2025 發現與肺水無相關；只記錄": "Caughey 2025 found no correlation with lung fluid. These readings are recorded only.",
+  "身高 155–190 cm、BMI 22–38 才使用 ReDS": "ReDS requires height 155–190 cm and BMI 22–38",
+  "Caughey 2025（廠商限制）；體重過輕會低估（{0}）": "Caughey 2025 cites manufacturer limits. ReDS can underestimate lung fluid in people with low body weight ({0}).",
+  "有肋膜積水時，肺水只顯示不計分": "With pleural effusion, lung fluid is recorded only",
+  "肋膜積水使數值偏高約 6.6 點（{0}）": "Pleural effusion increased readings by about 6.6 points ({0}).",
+  "ReDS 量 1 次即可；盡量同一人量": "Take one ReDS reading and use the same operator when possible",
+  "同一人 ICC 0.97、換人 0.68（{0}）": "ICC was 0.97 with the same operator and 0.68 with different operators ({0}).",
+  "皮膚水分量沒有瘻管側手腕內側，同一點連量 3 次": "Take three skin moisture readings at one spot on the inner wrist without a fistula",
+  "Caughey 2025 的做法": "Method used in Caughey 2025",
+  "三次讀數 CV > 10% 要重量": "Repeat the readings if the CV exceeds 10%",
+  "Caughey 2025 的 CV 為 5.6–6.4%": "Caughey 2025 reported a CV of 5.6–6.4%.",
+  "熱、流汗、洗澡後休息 15 分鐘": "Rest 15 minutes after heat, sweating, or showering",
+  "加熱使數值升高 18–30%（{0}）": "Heating increased readings by 18–30% ({0}).",
+  "每天固定時段量": "Measure at the same time each day",
+  "0.5 mm 深度從早到晚約降 4%（{0}）": "At a depth of 0.5 mm, readings fell by about 4% from morning to evening ({0}).",
+  "個人基準 = 最近 6 次透析後平均": "Personal baseline: average of the last 6 post-dialysis readings",
+  "沒有文獻": "No supporting study cited",
+  "為什麼要個人化": "Why use a personal baseline?",
+  "同樣脫水量，每個人肺水下降的幅度差很多（{0}）；肺水和體重、血壓的相關都弱（{1}、Caughey 2025）": "Lung fluid changes vary widely between people after the same amount of fluid is removed ({0}). Lung fluid correlates weakly with weight and blood pressure ({1}, Caughey 2025).",
+  "校正期：前 6 次透析後量測": "Calibration: the first 6 post-dialysis readings",
+  "只用安全底線判讀（肺水 ≥ 35%、體重多 ≥ 4 kg、喘的程度），同時建立個人基準": "Only the safety thresholds apply while your baseline is established. These cover lung fluid ≥ 35%, weight ≥ 4 kg above target, and breathlessness.",
+  "個人門檻 = max(4 點, 2 × 標準差)": "Individual threshold: the higher of 4 points or 2 × standard deviation",
+  "4 點是儀器誤差；平常波動大的人門檻自動放寬，減少誤報。平均 ± 2 個標準差是品質管制的常用做法，未在透析病人驗證": "Four points accounts for device error. The threshold widens for people with more variation, reducing false alerts. Mean ± 2 standard deviations is common in quality control and has yet to be validated in people on dialysis.",
+  "喘的程度跟平常比": "Compare breathlessness with your usual rating",
+  "有慢性肺病或心衰竭的人平常可能就 3–4 分；由醫護設定「平常的喘分數」，改看多 2 分以上": "People with chronic lung disease or heart failure may usually rate breathlessness as 3–4. The care team sets a usual rating, and the rule looks for an increase of at least 2 points.",
+  "目標體重由醫護設定": "Your care team sets the target weight",
+  "目標體重（乾體重）本來就由透析室依每個人訂定": "The dialysis unit sets a target weight (dry weight) for each person.",
+  "每一條規則都附上依據": "Every rule includes its rationale",
+  "判讀標準": "Scoring criteria",
+  "燈號": "Status levels",
+  "狀況穩定，照平常喝水": "Stable. Keep to your usual water intake.",
+  "0–1 分": "0–1 points",
+  "少喝水，隔天同一時段再量；連續兩次黃燈就聯絡透析室": "Drink less water and measure again at the same time tomorrow. Contact the dialysis unit after two yellow results in a row.",
+  "2–3 分": "2–3 points",
+  "請今天聯絡透析室；喘 ≥ 7 分直接紅燈": "Contact the dialysis unit today. A breathlessness rating ≥ 7 triggers an immediate red status.",
+  "≥ 4 分": "≥ 4 points",
+  "計分規則": "Scoring rules",
+  "個人化規則": "Personalized rules",
+  "量測標準": "Measurement guidelines",
+  "限制": "Limitations",
+  "35% 等門檻多數來自心衰竭研究；ReDS 用在透析病人的研究只有 3 篇，約 130 人。": "Most cutoffs, including 35%, come from heart failure studies. Only three studies, with about 130 people total, have looked at ReDS in dialysis.",
+  "26.5% 只來自一篇研究，且那批病人透析前平均就有 27.5%，所以只給 1 分。": "The 26.5% cutoff comes from one study. Participants averaged 27.5% before dialysis, so the prototype assigns only one point.",
+  "皮膚介電常數用在全身體液監測，目前只有 Caughey 2025（17 人）一篇。": "Caughey 2025 (17 participants) is the only study cited on using skin dielectric measurements to monitor whole-body fluid.",
+  "增重本身的風險有限，共識建議搭配客觀的體液量測（{0}）。": "Weight gain alone has limited value for estimating risk. The consensus recommends pairing it with objective fluid measurements ({0}).",
+  "以上數字取自文獻摘要。這是課堂作業原型，不能當作醫療判斷。": "Numbers come from published abstracts. This class project prototype cannot replace clinical judgment.",
+  "目標體重": "Target weight",
+  "平常的喘分數": "Usual breathlessness rating",
+  "未設定（用 4–6 分）": "Unset (use 4–6)",
+  "1 分": "1 point",
+  "2 分": "2 points",
+  "3 分": "3 points",
+  "4 分": "4 points",
+  "5 分": "5 points",
+  "有肋膜積水": "Pleural effusion present",
+  "鎖定醫護設定": "Lock clinician settings",
+  "未設定": "Unset",
+  "肋膜積水": "Pleural effusion",
+  "有": "Yes",
+  "醫護密碼": "Clinician PIN",
+  "示範密碼 1234": "Demo PIN: 1234",
+  "解鎖醫護設定": "Unlock clinician settings",
+  "狀態": "Status",
+  "校正期 {0}／{1} 次": "Calibrating ({0}/{1})",
+  "已建立": "Established",
+  "肺水基準": "Lung fluid baseline",
+  "肺水波動（標準差）": "Lung fluid variation (standard deviation)",
+  "{0} 點": "{0} points",
+  "肺水個人門檻": "Individual lung fluid threshold",
+  "4 點或 2 倍波動，取較大者": "Uses 4 points or twice the variation, whichever is higher",
+  "±{0} 點": "±{0} points",
+  "皮膚水分基準": "Skin moisture baseline",
+  "返回首頁": "Back to home",
+  "基本資料": "Profile",
+  "身高": "Height",
+  "BMI（以目標體重計）": "BMI (based on target weight)",
+  "一、三、五": "Mon, Wed, Fri",
+  "二、四、六": "Tue, Thu, Sat",
+  "瘻管在哪一手": "Fistula location",
+  "左手（量右手）": "Left arm (measure right)",
+  "右手（量左手）": "Right arm (measure left)",
+  "平常誰幫忙量": "Who usually takes the reading?",
+  "可以使用 ReDS，但肺水只顯示、不計分。": "You can use ReDS. Lung fluid will be recorded only.",
+  "可以使用 ReDS。": "You can use ReDS.",
+  "醫護設定": "Clinician settings",
+  "修改後按「儲存設定」。這些項目屬於臨床判斷，由透析室的醫護人員設定。": "Select Save settings when finished. The dialysis care team uses clinical judgment to set these values.",
+  "這些項目屬於臨床判斷，由透析室的醫護人員設定。": "The dialysis care team uses clinical judgment to set these values.",
+  "個人基準（自動計算）": "Personal baseline (calculated automatically)",
+  "用最近 {0} 次透析後的量測計算。前 {1} 次是校正期，只用安全底線判讀。": "Uses the last {0} post-dialysis readings. Only safety thresholds apply during the first {1} readings while the baseline is being established.",
+  "示範資料": "Demo data",
+  "載入示範資料": "Load demo data",
+  "再按一次確認清除": "Select again to confirm",
+  "清除所有紀錄": "Clear all readings",
+  "示範資料有兩週的紀錄，可以看到「綠燈 → 長間隔第一天黃燈 → 今天紅燈」的過程。": "The demo covers two weeks, from green to yellow on the first day of a long gap, then red today.",
+  "儲存設定": "Save settings",
+  "已儲存": "Saved",
+  "密碼不正確（示範密碼 1234）": "Incorrect PIN (demo PIN: 1234)",
+};
+
 /* ---------- 資料與儲存 ---------- */
 const KEY = "fluid-monitor-v1";
+const LANGUAGE_KEY = "fluid-monitor-language";
+let language = "zh-Hant";
+try { if(localStorage.getItem(LANGUAGE_KEY)==="en") language="en"; } catch(e) {}
+
+// Numbered placeholders let translations reorder values while keeping the same data.
+function t(message, ...values){
+  const template = language==="en" ? EN[message] ?? message : message;
+  return template.replace(/\{(\d+)\}/g, (_, index)=>values[index]);
+}
+
 const DAY = 864e5;
 let state = load() || demoState();
 let ui = { step:0, draft:null, lastId:null, metric:"lw", resetArm:false, timerEnd:0 };
@@ -186,9 +502,9 @@ function cv(a){ const m=mean(a); if(!m) return 0; const sd=Math.sqrt(a.reduce((s
 const bmi = p => p.target / ((p.height/100)**2);
 function redsStatus(p){
   const reasons=[];
-  if(p.height<155||p.height>190) reasons.push("身高不在 155–190 cm");
-  const b=bmi(p); if(b<22||b>38) reasons.push(`BMI ${b.toFixed(1)} 不在 22–38`);
-  if(p.pacerRight) reasons.push("右胸有心律調節器");
+  if(p.height<155||p.height>190) reasons.push(t("身高不在 155–190 cm"));
+  const b=bmi(p); if(b<22||b>38) reasons.push(t("BMI {0} 不在 22–38", b.toFixed(1)));
+  if(p.pacerRight) reasons.push(t("右胸有心律調節器"));
   return { usable:reasons.length===0, reasons, scored:reasons.length===0 && !p.effusion };
 }
 const sorted = () => [...state.records].sort((a,b)=>a.ts-b.ts);
@@ -206,52 +522,52 @@ function evaluate(rec){
   const p=state.profile, base=baseline(rec), rs=redsStatus(p), items=[], notes=[];
   let forced=false;
   if(rec.lw==null){
-    items.push({k:"肺水 %LW", d: rs.usable ? "這次沒有量" : "不適用 ReDS："+rs.reasons.join("、"), pts:0, off:true});
+    items.push({k:t("肺水 %LW"), d: rs.usable ? t("這次沒有量") : t("不適用 ReDS：")+rs.reasons.join(t("、")), pts:0, off:true});
   } else if(!rs.scored){
-    items.push({k:"肺水 %LW", d:`${rec.lw}%（只顯示，不計分）`, pts:0, off:true});
-    notes.push(p.effusion ? "設定中標示有肋膜積水，ReDS 數值可能假性偏高，所以這次肺水不列入計分。" : "ReDS 使用資格不符，肺水不列入計分。");
+    items.push({k:t("肺水 %LW"), d:t("{0}%（只顯示，不計分）", rec.lw), pts:0, off:true});
+    notes.push(p.effusion ? t("設定中標示有肋膜積水，ReDS 數值可能假性偏高，所以這次肺水不列入計分。") : t("ReDS 使用資格不符，肺水不列入計分。"));
   } else {
     const calib = base.calib;
-    if(rec.lw>=35) items.push({k:"肺水 %LW ≥ 35%（安全底線）", d:`${rec.lw}%`, pts:2});
-    else if(!calib && rec.lw>=26.5) items.push({k:"肺水 %LW 26.5–34.9%", d:`${rec.lw}%（透析族群門檻）`, pts:1});
-    else items.push({k:"肺水 %LW", d: calib ? `${rec.lw}%（校正期只看 35% 安全底線）` : `${rec.lw}%，低於 26.5%`, pts:0, off:calib});
+    if(rec.lw>=35) items.push({k:t("肺水 %LW ≥ 35%（安全底線）"), d:`${rec.lw}%`, pts:2});
+    else if(!calib && rec.lw>=26.5) items.push({k:t("肺水 %LW 26.5–34.9%"), d:t("{0}%（透析族群門檻）", rec.lw), pts:1});
+    else items.push({k:t("肺水 %LW"), d: calib ? t("{0}%（校正期只看 35% 安全底線）", rec.lw) : t("{0}%，低於 26.5%", rec.lw), pts:0, off:calib});
     if(!calib && base.lw!=null){
-      const dl = rec.lw-base.lw, why = 2*base.sd>4 ? `您的波動較大，用 2 倍波動 ${(2*base.sd).toFixed(1)} 點` : `儀器誤差 4 點（您的 2 倍波動 ${(2*base.sd).toFixed(1)} 點較小）`;
-      items.push({k:`肺水比個人基準高 ≥ ${base.thr.toFixed(1)} 點`, d:`基準 ${base.lw.toFixed(1)}%，差 ${dl>=0?"+":""}${dl.toFixed(1)} 點；門檻取${why}`, pts: dl>=base.thr?1:0});
+      const dl = rec.lw-base.lw, why = 2*base.sd>4 ? t("您的波動較大，用 2 倍波動 {0} 點", (2*base.sd).toFixed(1)) : t("儀器誤差 4 點（您的 2 倍波動 {0} 點較小）", (2*base.sd).toFixed(1));
+      items.push({k:t("肺水比個人基準高 ≥ {0} 點", base.thr.toFixed(1)), d:t("基準 {0}%，差 {1}{2} 點；門檻取{3}", base.lw.toFixed(1), dl>=0?"+":"", dl.toFixed(1), why), pts: dl>=base.thr?1:0});
     }
   }
   const calib = base.calib;
   const over = rec.weight - p.target;
-  if(over>=4) items.push({k:"比目標體重多 ≥ 4 kg（安全底線）", d:`+${over.toFixed(1)} kg（目標 ${p.target} kg）`, pts:2});
-  else items.push({k:"比目標體重多", d:`${over>=0?"+":""}${over.toFixed(1)} kg（目標 ${p.target} kg）${calib&&over>=3?"，校正期不用 3 kg 門檻":""}`, pts: !calib&&over>=3?1:0});
-  if(rec.dysp>=7){ forced=true; items.push({k:"喘的程度 ≥ 7 分", d:`${rec.dysp} 分，直接紅燈`, pts:0, forced:true}); }
-  else if(p.dyspBase!=null) items.push({k:`喘比平常多 ≥ 2 分`, d:`今天 ${rec.dysp} 分，平常 ${p.dyspBase} 分（醫護設定）`, pts: rec.dysp>=p.dyspBase+2?2:0});
-  else items.push({k:"喘的程度 4–6 分", d:`${rec.dysp} 分`, pts: rec.dysp>=4?2:0});
+  if(over>=4) items.push({k:t("比目標體重多 ≥ 4 kg（安全底線）"), d:t("+{0} kg（目標 {1} kg）", over.toFixed(1), p.target), pts:2});
+  else items.push({k:t("比目標體重多"), d:t("{0}{1} kg（目標 {2} kg）{3}", over>=0?"+":"", over.toFixed(1), p.target, calib&&over>=3?t("，校正期不用 3 kg 門檻"):""), pts: !calib&&over>=3?1:0});
+  if(rec.dysp>=7){ forced=true; items.push({k:t("喘的程度 ≥ 7 分"), d:t("{0} 分，直接紅燈", rec.dysp), pts:0, forced:true}); }
+  else if(p.dyspBase!=null) items.push({k:t("喘比平常多 ≥ 2 分"), d:t("今天 {0} 分，平常 {1} 分（醫護設定）", rec.dysp, p.dyspBase), pts: rec.dysp>=p.dyspBase+2?2:0});
+  else items.push({k:t("喘的程度 4–6 分"), d:t("{0} 分", rec.dysp), pts: rec.dysp>=4?2:0});
   const sm = mean(rec.skin), others = items.reduce((s,i)=>s+i.pts,0) > 0;
   if(!calib){
     const up = (sm/base.skin-1)*100, hit = up>=20;
-    items.push({k:"皮膚水分比基準高 ≥ 20%", d:`平均 ${sm.toFixed(1)}，基準 ${base.skin.toFixed(1)}（${up>=0?"+":""}${up.toFixed(0)}%）${hit&&!others?"，沒有其他指標有分，不計入":""}`,
+    items.push({k:t("皮膚水分比基準高 ≥ 20%"), d:t("平均 {0}，基準 {1}（{2}{3}%）{4}", sm.toFixed(1), base.skin.toFixed(1), up>=0?"+":"", up.toFixed(0), hit&&!others?t("，沒有其他指標有分，不計入"):""),
       pts: hit&&others?1:0, off: hit&&!others});
   } else {
-    items.push({k:"皮膚水分", d:`平均 ${sm.toFixed(1)}（校正期，只記錄）`, pts:0, off:true});
+    items.push({k:t("皮膚水分"), d:t("平均 {0}（校正期，只記錄）", sm.toFixed(1)), pts:0, off:true});
   }
-  items.push({k:"血壓、心跳", d:`${rec.sbp}/${rec.dbp} mmHg，${rec.hr} 次/分（只記錄，不計分）`, pts:0, off:true});
-  if(calib) notes.push(`校正期（透析後量測已完成 ${base.n}／${CALIB_N} 次）：只用安全底線判讀，也就是肺水 ≥ 35%、體重多 ≥ 4 kg、喘的程度。`);
-  if(rec.rater && p.rater && rec.rater!==p.rater) notes.push(`這次 ReDS 由「${rec.rater}」量，平常是「${p.rater}」。換人量時數值較不穩定。`);
+  items.push({k:t("血壓、心跳"), d:t("{0}/{1} mmHg，{2} 次/分（只記錄，不計分）", rec.sbp, rec.dbp, rec.hr), pts:0, off:true});
+  if(calib) notes.push(t("校正期（透析後量測已完成 {0}／{1} 次）：只用安全底線判讀，也就是肺水 ≥ 35%、體重多 ≥ 4 kg、喘的程度。", base.n, CALIB_N));
+  if(rec.rater && p.rater && rec.rater!==p.rater) notes.push(t("這次 ReDS 由「{0}」量，平常是「{1}」。換人量時數值較不穩定。", rec.rater, p.rater));
   const score = items.reduce((s,i)=>s+i.pts,0);
   const level = forced||score>=4 ? "red" : score>=2 ? "yellow" : "green";
   return { score, level, items, notes, forced, base };
 }
 function prevRecord(rec){ return sorted().filter(r=>r.ts<rec.ts).pop(); }
-const LV = { green:{t:"綠燈", s:"狀況穩定", b:"b-green"}, yellow:{t:"黃燈", s:"需要留意", b:"b-orange"}, red:{t:"紅燈", s:"請今天聯絡透析室", b:"b-red"} };
+const LV = { green:{get t(){ return t("綠燈"); }, get s(){ return t("狀況穩定"); }, b:"b-green"}, yellow:{get t(){ return t("黃燈"); }, get s(){ return t("需要留意"); }, b:"b-orange"}, red:{get t(){ return t("紅燈"); }, get s(){ return t("請今天聯絡透析室"); }, b:"b-red"} };
 function advice(rec, ev){
-  if(ev.level==="red") return ev.forced ? "您很喘。請立即就醫或撥 119。" : "請今天聯絡透析室，告訴護理師這次的數值。很喘或胸悶請撥 119。";
+  if(ev.level==="red") return ev.forced ? t("您很喘。請立即就醫或撥 119。") : t("請今天聯絡透析室，告訴護理師這次的數值。很喘或胸悶請撥 119。");
   if(ev.level==="yellow"){
     const pr = prevRecord(rec);
-    if(pr && evaluate(pr).level==="yellow") return "已經連續兩次黃燈。請聯絡透析室。";
-    return "今天少喝水、少吃鹹，明天同一時段再量一次。";
+    if(pr && evaluate(pr).level==="yellow") return t("已經連續兩次黃燈。請聯絡透析室。");
+    return t("今天少喝水、少吃鹹，明天同一時段再量一次。");
   }
-  return rec.type==="post" ? "透析後數值已記錄，會用來更新您的個人基準。" : "狀況穩定，照平常的喝水量即可。";
+  return rec.type==="post" ? t("透析後數值已記錄，會用來更新您的個人基準。") : t("狀況穩定，照平常的喝水量即可。");
 }
 
 /* ---------- 工具 ---------- */
@@ -259,7 +575,9 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const md = ts => { const d=new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; };
 const hm = ts => { const d=new Date(ts); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
-const wk = ts => "日一二三四五六"[new Date(ts).getDay()];
+const englishWeekday = new Intl.DateTimeFormat("en", {weekday:"short"});
+const wk = ts => language==="en" ? englishWeekday.format(ts) : "日一二三四五六"[new Date(ts).getDay()];
+const recordTime = (ts, type) => t("{0}（{1}）{2}・{3}", md(ts), wk(ts), hm(ts), type);
 function daysSinceDialysis(){
   const last = state.records.filter(r=>r.type==="post").sort((a,b)=>b.ts-a.ts)[0];
   if(!last) return null;
@@ -294,13 +612,42 @@ window.addEventListener("hashchange", render);
 
 function render(){
   const r = route();
-  $("#nav").innerHTML = NAV.map(([k,t,p])=>{ const on = k===r||(r==="result"&&k==="measure")||(r==="setup"&&k==="home");
-    return `<a href="#${k}" class="${on?"on":""}" ${on?'aria-current="page"':""}>${ic(p)}${t}</a>`; }).join("");
+  $("#nav").innerHTML = NAV.map(([k,label,p])=>{ const on = k===r||(r==="result"&&k==="measure")||(r==="setup"&&k==="home");
+    return `<a href="#${k}" class="${on?"on":""}" ${on?'aria-current="page"':""}>${ic(p)}${t(label)}</a>`; }).join("");
   const v = {home,measure,result,trend,log,criteria,setup}[r]();
-  $("#app").innerHTML = `<div class="view">${v}<p class="foot">課堂作業原型，判讀規則僅供示範，不能取代醫療判斷。很喘或胸悶請撥 119。</p></div>`;
+  $("#app").innerHTML = `<div class="view">${v}<p class="foot">${t("課堂作業原型，判讀規則僅供示範，不能取代醫療判斷。很喘或胸悶請撥 119。")}</p></div>`;
   bind[r] && bind[r]();
   window.scrollTo(0,0);
 }
+
+const languageButtons = document.querySelectorAll("#language button");
+function renderLanguage(){
+  document.documentElement.lang = language;
+  document.title = t("居家水分監測");
+  $("#language").setAttribute("aria-label", t("語言"));
+  $("#nav").setAttribute("aria-label", t("主要導覽"));
+  languageButtons.forEach(button=>{
+    const active = button.dataset.lang===language;
+    button.classList.toggle("on", active);
+    button.setAttribute("aria-pressed", active);
+  });
+  render();
+}
+
+languageButtons.forEach(button=>button.onclick = () => {
+  if(button.dataset.lang===language) return;
+  // Keep unsaved values when the current view is rendered in the new language.
+  const fields = [...document.querySelectorAll("#app input, #app select")];
+  language = button.dataset.lang;
+  try { localStorage.setItem(LANGUAGE_KEY, language); } catch(e) {}
+  renderLanguage();
+  fields.forEach(previous=>{
+    const field = document.getElementById(previous.id);
+    if(field.type==="checkbox") field.checked=previous.checked;
+    else field.value=previous.value;
+    field.dispatchEvent(new Event("input"));
+  });
+});
 
 /* ---------- 共用元件 ---------- */
 function topbar(left, right){
@@ -313,7 +660,7 @@ function statusCard(level, tt, sub, score){
   const L=LV[level];
   return `<div class="card status lv-${level}"><div class="top"><div class="ring">${ic(LVICON[level])}</div>
     <div style="flex:1;min-width:0"><p class="lab">${L.t}</p><p class="tt">${tt||L.s}</p></div>
-    <div class="score"><b>${score}</b><span>總分</span></div></div>${sub?`<p class="sub">${sub}</p>`:""}</div>`;
+    <div class="score"><b>${score}</b><span>${t("總分")}</span></div></div>${sub?`<p class="sub">${sub}</p>`:""}</div>`;
 }
 const group = (h, rows, foot) => `<section class="group">${h?`<h2 class="gh">${h}</h2>`:""}<div class="list">${rows}</div>${foot?`<p class="foot">${foot}</p>`:""}</section>`;
 function row(o){
@@ -331,20 +678,23 @@ function home(){
   const last = sorted().pop(), ev = last && evaluate(last), ds = daysSinceDialysis();
   const p = state.profile, rs = redsStatus(p), base = baseline({ts:Date.now()+1});
   const now = Date.now(), d = new Date(now);
+  const date = language==="en"
+    ? new Intl.DateTimeFormat("en", {weekday:"long", month:"long", day:"numeric"}).format(now)
+    : `${d.getMonth()+1}月${d.getDate()}日 星期${wk(now)}`;
   const rows = [];
-  rows.push(row({icon:P.cal, iconBg:"var(--accent)", t:"距離上次透析", v: ds==null?"—": ds===0?"今天":`${ds} 天`, strong:true}));
-  if(ds!=null&&ds>=2) rows.push(row({icon:P.warn, iconBg:"var(--orange)", t:"長間隔期間", s:"體液最容易累積，今天一定要量"}));
-  if(base.calib) rows.push(row({icon:P.info, iconBg:"var(--muted)", t:"個人基準建立中", s:"校正期只用安全底線判讀", v:`${base.n}／${CALIB_N} 次`, strong:true}));
-  else rows.push(row({icon:P.info, iconBg:"var(--green)", t:"個人基準已建立", s:`肺水基準 ${base.lw!=null?base.lw.toFixed(1)+"%":"—"}・門檻 ±${base.thr.toFixed(1)} 點`, href:"#setup", chev:true}));
-  if(!rs.usable) rows.push(row({icon:P.lung, iconBg:"var(--muted)", t:"ReDS 已關閉", s:esc(rs.reasons.join("、"))}));
-  else if(p.effusion) rows.push(row({icon:P.lung, iconBg:"var(--muted)", t:"肺水只顯示、不計分", s:"設定中標示有肋膜積水"}));
-  return `${topbar(null,{href:"#setup",label:"設定",icon:P.gear})}
-  ${title(`${d.getMonth()+1}月${d.getDate()}日 星期${wk(now)}`,"今天")}
-  ${last ? `<a href="#result" id="seeLast" style="color:inherit">${statusCard(ev.level, null, `上次量測 ${md(last.ts)} ${hm(last.ts)}・點一下查看計分明細`, ev.score)}</a>`
-         : statusCard(null,"還沒有量測紀錄","按下方按鈕開始第一次量測")}
-  ${group("透析", rows.join(""))}
-  <div class="btns"><button class="cap pro" id="start">開始今天的量測</button>
-  ${p.demo?`<a class="cap" href="#setup">目前是示範資料・前往設定</a>`:""}</div>`;
+  rows.push(row({icon:P.cal, iconBg:"var(--accent)", t:t("距離上次透析"), v: ds==null?"—": ds===0?t("今天"):ds===1?t("1 天"):t("{0} 天", ds), strong:true}));
+  if(ds!=null&&ds>=2) rows.push(row({icon:P.warn, iconBg:"var(--orange)", t:t("長間隔期間"), s:t("體液最容易累積，今天一定要量")}));
+  if(base.calib) rows.push(row({icon:P.info, iconBg:"var(--muted)", t:t("個人基準建立中"), s:t("校正期只用安全底線判讀"), v:t("{0}／{1} 次", base.n, CALIB_N), strong:true}));
+  else rows.push(row({icon:P.info, iconBg:"var(--green)", t:t("個人基準已建立"), s:t("肺水基準 {0}・門檻 ±{1} 點", base.lw!=null?base.lw.toFixed(1)+"%":"—", base.thr.toFixed(1)), href:"#setup", chev:true}));
+  if(!rs.usable) rows.push(row({icon:P.lung, iconBg:"var(--muted)", t:t("ReDS 已關閉"), s:esc(rs.reasons.join(t("、")))}));
+  else if(p.effusion) rows.push(row({icon:P.lung, iconBg:"var(--muted)", t:t("肺水只顯示、不計分"), s:t("設定中標示有肋膜積水")}));
+  return `${topbar(null,{href:"#setup",label:t("設定"),icon:P.gear})}
+  ${title(date,t("今天"))}
+  ${last ? `<a href="#result" id="seeLast" style="color:inherit">${statusCard(ev.level, null, t("上次量測 {0} {1}・點一下查看計分明細", md(last.ts), hm(last.ts)), ev.score)}</a>`
+         : statusCard(null,t("還沒有量測紀錄"),t("按下方按鈕開始第一次量測"))}
+  ${group(t("透析"), rows.join(""))}
+  <div class="btns"><button class="cap pro" id="start">${t("開始今天的量測")}</button>
+  ${p.demo?`<a class="cap" href="#setup">${t("目前是示範資料・前往設定")}</a>`:""}</div>`;
 }
 const bind = {};
 bind.home = () => {
@@ -355,51 +705,51 @@ bind.home = () => {
 /* ---------- 量測精靈 ---------- */
 function newDraft(){ return { type:"home", weight:"", sbp:"", dbp:"", hr:"", skin:["","",""], lw:"", rater:state.profile.rater||"", dysp:null, hot:null, waited:false, remeasured:false, cvFail:false }; }
 const STEPS = ["量測前檢查","量測類型","體重","血壓心跳","皮膚水分","ReDS 肺水","喘的程度"];
-const inRow = (id,label,val,o={}) => `<label class="row" for="${id}"><span class="main"><span class="t" style="display:block">${label}</span>${o.s?`<span class="s" style="display:block">${o.s}</span>`:""}</span><input id="${id}" type="${o.type||"number"}" ${o.type==="text"?"":`inputmode="${o.mode||"decimal"}" step="${o.step||"0.1"}"`} placeholder="${o.ph||"輸入"}" value="${esc(val)}">${o.unit?`<span class="v">${o.unit}</span>`:""}</label>`;
+const inRow = (id,label,val,o={}) => `<label class="row" for="${id}"><span class="main"><span class="t" style="display:block">${label}</span>${o.s?`<span class="s" style="display:block">${o.s}</span>`:""}</span><input id="${id}" type="${o.type||"number"}" ${o.type==="text"?"":`inputmode="${o.mode||"decimal"}" step="${o.step||"0.1"}"`} placeholder="${o.ph||t("輸入")}" value="${esc(val)}">${o.unit?`<span class="v">${o.unit}</span>`:""}</label>`;
 function measure(){
   if(!ui.draft) ui.draft = newDraft();
   const d = ui.draft, s = ui.step, rs = redsStatus(state.profile);
   let body = "";
   if(s===0){
     const left = Math.max(0, Math.ceil((ui.timerEnd-Date.now())/1000));
-    body = `<div class="card"><h2>剛洗澡、運動，或覺得很熱、在流汗嗎？</h2><p class="muted" style="margin-top:6px;font-size:15px">熱和流汗會讓皮膚水分讀數暫時偏高。</p></div>
-      <div class="duo"><button class="cap" id="hotYes">是</button><button class="cap" id="hotNo">否</button></div>
-      ${d.hot?`<div class="card" style="display:flex;flex-direction:column;gap:12px"><p style="text-align:center">請先坐著休息 15 分鐘再量</p><div class="timer" id="timer">${String(Math.floor(left/60)).padStart(2,"0")}:${String(left%60).padStart(2,"0")}</div>
-        <button class="cap pro" id="timerDone" ${left>0?"disabled":""}>休息好了，繼續</button><button class="cap" id="timerSkip">示範用：略過等待</button></div>`:""}`;
+    body = `<div class="card"><h2>${t("剛洗澡、運動，或覺得很熱、在流汗嗎？")}</h2><p class="muted" style="margin-top:6px;font-size:15px">${t("熱和流汗會讓皮膚水分讀數暫時偏高。")}</p></div>
+      <div class="duo"><button class="cap" id="hotYes">${t("是")}</button><button class="cap" id="hotNo">${t("否")}</button></div>
+      ${d.hot?`<div class="card" style="display:flex;flex-direction:column;gap:12px"><p style="text-align:center">${t("請先坐著休息 15 分鐘再量")}</p><div class="timer" id="timer">${String(Math.floor(left/60)).padStart(2,"0")}:${String(left%60).padStart(2,"0")}</div>
+        <button class="cap pro" id="timerDone" ${left>0?"disabled":""}>${t("休息好了，繼續")}</button><button class="cap" id="timerSkip">${t("示範用：略過等待")}</button></div>`:""}`;
   } else if(s===1){
-    body = group("這次是哪一種量測？",
-      row({btn:"t-home", t:"在家量測", s:"兩次透析之間", right: d.type==="home"?CHECK:""}) +
-      row({btn:"t-post", t:"透析後量測", s:"用來建立個人基準", right: d.type==="post"?CHECK:""}));
+    body = group(t("這次是哪一種量測？"),
+      row({btn:"t-home", t:t("在家量測"), s:t("兩次透析之間"), right: d.type==="home"?CHECK:""}) +
+      row({btn:"t-post", t:t("透析後量測"), s:t("用來建立個人基準"), right: d.type==="post"?CHECK:""}));
   } else if(s===2){
-    body = group("體重", inRow("f-weight","體重",d.weight,{unit:"kg"}), `起床、上完廁所後，穿差不多的衣服量。目標體重 ${state.profile.target} kg。`);
+    body = group(t("體重"), inRow("f-weight",t("體重"),d.weight,{unit:"kg"}), t("起床、上完廁所後，穿差不多的衣服量。目標體重 {0} kg。", state.profile.target));
   } else if(s===3){
-    body = group("血壓、心跳", inRow("f-sbp","收縮壓",d.sbp,{unit:"mmHg",mode:"numeric",step:"1"})+inRow("f-dbp","舒張壓",d.dbp,{unit:"mmHg",mode:"numeric",step:"1"})+inRow("f-hr","心跳",d.hr,{unit:"次/分",mode:"numeric",step:"1"}), "這兩項只記錄，不列入判讀分數。");
+    body = group(t("血壓、心跳"), inRow("f-sbp",t("收縮壓"),d.sbp,{unit:"mmHg",mode:"numeric",step:"1"})+inRow("f-dbp",t("舒張壓"),d.dbp,{unit:"mmHg",mode:"numeric",step:"1"})+inRow("f-hr",t("心跳"),d.hr,{unit:t("次/分"),mode:"numeric",step:"1"}), t("這兩項只記錄，不列入判讀分數。"));
   } else if(s===4){
-    const arm = state.profile.fistula==="left"?"右手":"左手";
-    body = `<div class="tip">量 <b>${arm}</b>手腕內側、皮膚記號的位置（沒有瘻管的那一側）。探頭輕貼皮膚，壓力燈亮就放鬆一點。</div>
-      ${group("皮膚水分（連量 3 次）", [0,1,2].map(i=>inRow("f-s"+i,`第 ${i+1} 次`,d.skin[i],{unit:"a.u."})).join(""))}
+    const arm = state.profile.fistula==="left"?t("右手"):t("左手");
+    body = `<div class="tip">${t("量 {0}手腕內側、皮膚記號的位置（沒有瘻管的那一側）。探頭輕貼皮膚，壓力燈亮就放鬆一點。", `<b>${arm}</b>`)}</div>
+      ${group(t("皮膚水分（連量 3 次）"), [0,1,2].map(i=>inRow("f-s"+i,t("第 {0} 次", i+1),d.skin[i],{unit:"a.u."})).join(""))}
       <div id="cvbox"></div>`;
   } else if(s===5){
     if(!rs.usable){
-      body = `<div class="tip">您不適用 ReDS（${esc(rs.reasons.join("、"))}），這一步跳過。</div>`;
+      body = `<div class="tip">${t("您不適用 ReDS（{0}），這一步跳過。", esc(rs.reasons.join(t("、"))))}</div>`;
     } else {
-      body = `<div class="card"><ol class="howto"><li>坐直，背心的感測片貼在右胸前和背後。</li><li>拉緊側邊綁帶，讓感測片貼住身體。</li><li>按開始，安靜不說話約 1 分鐘。</li></ol></div>
-        ${state.profile.effusion?`<div class="tip">您有肋膜積水，這次數值只會顯示、不計分。</div>`:""}
-        ${group("ReDS 肺水", inRow("f-lw","肺水 %LW",d.lw,{unit:"%",step:"1"})+inRow("f-rater","今天誰幫忙量",d.rater,{type:"text",ph:"例如：女兒"}))}
+      body = `<div class="card"><ol class="howto"><li>${t("坐直，背心的感測片貼在右胸前和背後。")}</li><li>${t("拉緊側邊綁帶，讓感測片貼住身體。")}</li><li>${t("按開始，安靜不說話約 1 分鐘。")}</li></ol></div>
+        ${state.profile.effusion?`<div class="tip">${t("您有肋膜積水，這次數值只會顯示、不計分。")}</div>`:""}
+        ${group(t("ReDS 肺水"), inRow("f-lw",t("肺水 %LW"),d.lw,{unit:"%",step:"1"})+inRow("f-rater",t("今天誰幫忙量"),d.rater,{type:"text",ph:t("例如：女兒")}))}
         <div id="raterbox"></div>`;
     }
   } else if(s===6){
-    const lab = {1:"完全不喘",4:"有點喘",7:"很喘",10:"極度喘"};
-    body = `<div class="card"><h2>今天喘不喘？</h2><p class="muted" style="margin-top:6px;font-size:15px">1 分是完全不喘，10 分是極度喘。</p></div>
+    const lab = {1:t("完全不喘"),4:t("有點喘"),7:t("很喘"),10:t("極度喘")};
+    body = `<div class="card"><h2>${t("今天喘不喘？")}</h2><p class="muted" style="margin-top:6px;font-size:15px">${t("1 分是完全不喘，10 分是極度喘。")}</p></div>
       <div class="faces">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="face ${d.dysp===n?"sel":""}" data-d="${n}" aria-pressed="${d.dysp===n}"><b>${n}</b><small>${lab[n]||""}</small></button>`).join("")}</div>
-      ${d.dysp>=7?`<div class="tip bad">很喘請不要等，立即就醫或撥 119。</div>`:""}`;
+      ${d.dysp>=7?`<div class="tip bad">${t("很喘請不要等，立即就醫或撥 119。")}</div>`:""}`;
   }
-  const nextLabel = s===STEPS.length-1 ? "完成" : "下一步";
-  return `${topbar({id:"cancel",label:"取消量測",icon:P.close},null)}
-    ${title(`第 ${s+1} 步，共 ${STEPS.length} 步・${STEPS[s]}`,"量測")}
+  const nextLabel = s===STEPS.length-1 ? t("完成") : t("下一步");
+  return `${topbar({id:"cancel",label:t("取消量測"),icon:P.close},null)}
+    ${title(t("第 {0} 步，共 {1} 步・{2}", s+1, STEPS.length, t(STEPS[s])),t("量測"))}
     <div class="progress" aria-hidden="true"><i style="width:${(s+1)/STEPS.length*100}%"></i></div>
     ${body}
-    ${s>0?`<div class="duo"><button class="cap" id="back">上一步</button><button class="cap pro" id="next">${nextLabel}</button></div>`:""}
+    ${s>0?`<div class="duo"><button class="cap" id="back">${t("上一步")}</button><button class="cap pro" id="next">${nextLabel}</button></div>`:""}
     <p class="foot" id="err" role="alert" style="color:var(--red)"></p>`;
 }
 function collect(){
@@ -411,14 +761,14 @@ function collect(){
 }
 function validate(){
   const d=ui.draft, s=ui.step;
-  if(s===2 && !(d.weight>20&&d.weight<250)) return "請輸入體重（kg）。";
-  if(s===3 && (!d.sbp||!d.dbp||!d.hr)) return "請輸入收縮壓、舒張壓和心跳。";
+  if(s===2 && !(d.weight>20&&d.weight<250)) return t("請輸入體重（kg）。");
+  if(s===3 && (!d.sbp||!d.dbp||!d.hr)) return t("請輸入收縮壓、舒張壓和心跳。");
   if(s===4){
-    const v=d.skin.map(Number); if(d.skin.some(x=>x===""||isNaN(Number(x)))) return "請輸入 3 次讀數。";
-    if(cv(v)>10){ d.cvFail=true; return "三次讀數差太多（CV > 10%）。請在同一點重量 3 次，再輸入新的數字。"; }
+    const v=d.skin.map(Number); if(d.skin.some(x=>x===""||isNaN(Number(x)))) return t("請輸入 3 次讀數。");
+    if(cv(v)>10){ d.cvFail=true; return t("三次讀數差太多（CV > 10%）。請在同一點重量 3 次，再輸入新的數字。"); }
   }
-  if(s===5 && $("#f-lw") && (d.lw===""||d.lw<5||d.lw>70)) return "請輸入 ReDS 顯示的肺水百分比。";
-  if(s===6 && !d.dysp) return "請選一個分數。";
+  if(s===5 && $("#f-lw") && (d.lw===""||d.lw<5||d.lw>70)) return t("請輸入 ReDS 顯示的肺水百分比。");
+  if(s===6 && !d.dysp) return t("請選一個分數。");
   return "";
 }
 function cvMsg(){
@@ -426,7 +776,7 @@ function cvMsg(){
   const v=[0,1,2].map(i=>$("#f-s"+i).value);
   if(v.some(x=>x==="")){ box.innerHTML=""; return; }
   const n=v.map(Number), c=cv(n);
-  box.innerHTML = `<div class="tip ${c>10?"warn":""}">平均 <b class="num">${mean(n).toFixed(1)}</b>・CV <b class="num">${c.toFixed(1)}%</b>${c>10?"：差太多，請重量":"：讀數穩定"}</div>`;
+  box.innerHTML = `<div class="tip ${c>10?"warn":""}">${t("平均")} <b class="num">${mean(n).toFixed(1)}</b>・CV <b class="num">${c.toFixed(1)}%</b>${c>10?t("：差太多，請重量"):t("：讀數穩定")}</div>`;
 }
 let tick=null;
 bind.measure = () => {
@@ -450,7 +800,7 @@ bind.measure = () => {
   if(ui.step===4){ [0,1,2].forEach(i=>$("#f-s"+i).addEventListener("input",cvMsg)); cvMsg(); }
   if(ui.step===5 && $("#f-rater")){
     const chk=()=>{ const v=$("#f-rater").value.trim(), p=state.profile.rater;
-      $("#raterbox").innerHTML = v&&p&&v!==p ? `<div class="tip warn">平常是「${esc(p)}」量。換人量時數值較不穩定，系統會記下這次換人。</div>`:""; };
+      $("#raterbox").innerHTML = v&&p&&v!==p ? `<div class="tip warn">${t("平常是「{0}」量。換人量時數值較不穩定，系統會記下這次換人。", esc(p))}</div>`:""; };
     $("#f-rater").addEventListener("input",chk); chk();
   }
   $("#back").onclick = () => { collect(); ui.step--; render(); };
@@ -470,35 +820,35 @@ bind.measure = () => {
 /* ---------- 結果 ---------- */
 function result(){
   const rec = state.records.find(r=>r.id===ui.lastId) || sorted().pop();
-  if(!rec) return `${topbar({href:"#home",label:"返回",icon:P.back},null)}${title("","判讀結果")}<div class="card">還沒有量測紀錄。</div>`;
+  if(!rec) return `${topbar({href:"#home",label:t("返回"),icon:P.back},null)}${title("",t("判讀結果"))}<div class="card">${t("還沒有量測紀錄。")}</div>`;
   const ev = evaluate(rec);
-  const rows = ev.items.map(i=>row({t:i.k, s:esc(i.d), dim:i.off||(!i.pts&&!i.forced), v: i.forced?"紅燈": i.off?"—": "+"+i.pts,
+  const rows = ev.items.map(i=>row({t:i.k, s:esc(i.d), dim:i.off||(!i.pts&&!i.forced), v: i.forced?t("紅燈"): i.off?"—": "+"+i.pts,
     badge: i.forced||i.pts===2 ? "b-red" : i.pts===1 ? "b-orange" : "b-gray"})).join("");
-  const extra = ev.notes.concat(rec.remeasured?["這次皮膚水分三次讀數差太多，已重量。"]:[]);
-  return `${topbar({href:"#log",label:"返回紀錄",icon:P.back},null)}
-  ${title(`${md(rec.ts)}（${wk(rec.ts)}）${hm(rec.ts)}・${rec.type==="post"?"透析後量測":"在家量測"}`,"判讀結果")}
-  ${statusCard(ev.level, null, ev.forced?"喘的程度 ≥ 7 分，直接紅燈":"綠燈 0–1 分・黃燈 2–3 分・紅燈 4 分以上", ev.score)}
-  <section class="group"><h2 class="gh">建議</h2><div class="card" style="font-size:17px;font-weight:600">${advice(rec,ev)}</div></section>
-  ${group("計分明細", rows, `<a href="#criteria">計分是怎麼來的？</a>`)}
+  const extra = ev.notes.concat(rec.remeasured?[t("這次皮膚水分三次讀數差太多，已重量。")]:[]);
+  return `${topbar({href:"#log",label:t("返回紀錄"),icon:P.back},null)}
+  ${title(recordTime(rec.ts, rec.type==="post"?t("透析後量測"):t("在家量測")),t("判讀結果"))}
+  ${statusCard(ev.level, null, ev.forced?t("喘的程度 ≥ 7 分，直接紅燈"):t("綠燈 0–1 分・黃燈 2–3 分・紅燈 4 分以上"), ev.score)}
+  <section class="group"><h2 class="gh">${t("建議")}</h2><div class="card" style="font-size:17px;font-weight:600">${advice(rec,ev)}</div></section>
+  ${group(t("計分明細"), rows, `<a href="#criteria">${t("計分是怎麼來的？")}</a>`)}
   ${extra.map(n=>`<div class="tip">${esc(n)}</div>`).join("")}
-  <a class="cap" href="#trend">看趨勢</a>`;
+  <a class="cap" href="#trend">${t("看趨勢")}</a>`;
 }
 
 /* ---------- 趨勢 ---------- */
 const METRICS = {
-  lw:{t:"肺水",full:"肺水 %LW", u:"%", get:r=>r.lw, refs:[[26.5,"26.5%"],[35,"35%"]], band:b=>!b.calib&&b.lw!=null?[b.lw-b.thr,b.lw+b.thr]:null},
-  skin:{t:"皮膚水分",full:"皮膚水分", u:"a.u.", get:r=>+mean(r.skin).toFixed(1), refs:[], band:b=>!b.calib?[b.skin*0.8,b.skin*1.2]:null},
-  weight:{t:"體重",full:"體重", u:"kg", get:r=>r.weight, refs:[[null,"目標"]], band:()=>[state.profile.target, state.profile.target+3]}
+  lw:{get t(){ return t("肺水"); },get full(){ return t("肺水 %LW"); }, u:"%", get:r=>r.lw, refs:[[26.5,"26.5%"],[35,"35%"]], band:b=>!b.calib&&b.lw!=null?[b.lw-b.thr,b.lw+b.thr]:null},
+  skin:{get t(){ return t("皮膚水分"); },get full(){ return t("皮膚水分"); }, u:"a.u.", get:r=>+mean(r.skin).toFixed(1), refs:[], band:b=>!b.calib?[b.skin*0.8,b.skin*1.2]:null},
+  weight:{get t(){ return t("體重"); },get full(){ return t("體重"); }, u:"kg", get:r=>r.weight, refs:[[null,"目標"]], band:()=>[state.profile.target, state.profile.target+3]}
 };
 const LVC = {green:"var(--green)", yellow:"var(--orange)", red:"var(--red)"};
 function chart(key){
   const M=METRICS[key], recs=sorted().filter(r=>M.get(r)!=null);
-  if(recs.length<2) return `<p class="muted">資料還不夠畫圖。</p>`;
+  if(recs.length<2) return `<p class="muted">${t("資料還不夠畫圖。")}</p>`;
   const W=640,H=260,pl=34,pr=10,pt=12,pb=26;
   const t0=new Date(recs[0].ts); t0.setHours(0,0,0,0); const tA=t0.getTime();
   const t1=new Date(recs[recs.length-1].ts); t1.setHours(24,0,0,0); const tB=t1.getTime();
   const base=baseline({ts:Date.now()+1}), band=M.band(base);
-  const refs=M.refs.map(([v,l])=>[v==null?state.profile.target:v,l]);
+  const refs=M.refs.map(([v,l])=>[v==null?state.profile.target:v,t(l)]);
   let vals=recs.map(M.get).concat(refs.map(r=>r[0])); if(band) vals=vals.concat(band);
   let lo=Math.min(...vals), hi=Math.max(...vals); const pad=(hi-lo)*0.12||1; lo-=pad; hi+=pad;
   const x=t=>pl+(t-tA)/(tB-tA)*(W-pl-pr), y=v=>pt+(hi-v)/(hi-lo)*(H-pt-pb);
@@ -511,91 +861,91 @@ function chart(key){
   for(let t=tA; t<tB; t+=DAY*2){ g+=`<text x="${x(t+DAY/2)}" y="${H-6}" text-anchor="middle">${md(t)}</text>`; }
   g+=`<polyline fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round" points="${recs.map(r=>`${x(r.ts).toFixed(1)},${y(M.get(r)).toFixed(1)}`).join(" ")}"/>`;
   recs.forEach((r,i)=>{ const ev=evaluate(r), last=i===recs.length-1;
-    g+=`<circle cx="${x(r.ts)}" cy="${y(M.get(r))}" r="${last?7:4.5}" fill="${LVC[ev.level]}" stroke="var(--surface)" stroke-width="2"><title>${md(r.ts)} ${hm(r.ts)}：${M.get(r)} ${M.u}（${LV[ev.level].t}）</title></circle>`; });
-  return `<div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${M.full}趨勢圖">${g}</svg></div>`;
+    g+=`<circle cx="${x(r.ts)}" cy="${y(M.get(r))}" r="${last?7:4.5}" fill="${LVC[ev.level]}" stroke="var(--surface)" stroke-width="2"><title>${t("{0} {1}：{2} {3}（{4}）", md(r.ts), hm(r.ts), M.get(r), M.u, LV[ev.level].t)}</title></circle>`; });
+  return `<div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${t("{0}趨勢圖", M.full)}">${g}</svg></div>`;
 }
 function niceStep(r){ const p=10**Math.floor(Math.log10(r)), m=r/p; return (m<1.5?1:m<3?2:m<7?5:10)*p; }
 function trend(){
   const M=METRICS[ui.metric], base=baseline({ts:Date.now()+1}), last=sorted().filter(r=>M.get(r)!=null).pop();
-  const bandTxt = ui.metric==="lw" ? (!base.calib&&base.lw!=null?`${base.lw.toFixed(1)}% ± ${base.thr.toFixed(1)} 點`:`建立中 ${base.n}／${CALIB_N}`)
-    : ui.metric==="skin" ? (!base.calib?`${base.skin.toFixed(1)} ± 20%`:`建立中 ${base.n}／${CALIB_N}`) : `目標到 +3 kg`;
-  const refTxt = ui.metric==="lw" ? "26.5% / 35%" : ui.metric==="weight" ? `目標 ${state.profile.target} kg` : "無";
-  return `${topbar(null,{href:"#log",label:"看紀錄",icon:'<path d="M4 6h16M7 12h10M10 18h4"/>'})}
-  ${title("最近兩週","趨勢")}
+  const bandTxt = ui.metric==="lw" ? (!base.calib&&base.lw!=null?t("{0}% ± {1} 點", base.lw.toFixed(1), base.thr.toFixed(1)):t("建立中 {0}／{1}", base.n, CALIB_N))
+    : ui.metric==="skin" ? (!base.calib?`${base.skin.toFixed(1)} ± 20%`:t("建立中 {0}／{1}", base.n, CALIB_N)) : t("目標到 +3 kg");
+  const refTxt = ui.metric==="lw" ? "26.5% / 35%" : ui.metric==="weight" ? t("目標 {0} kg", state.profile.target) : t("無");
+  return `${topbar(null,{href:"#log",label:t("看紀錄"),icon:'<path d="M4 6h16M7 12h10M10 18h4"/>'})}
+  ${title(t("最近兩週"),t("趨勢"))}
   <div class="seg" role="tablist">${Object.entries(METRICS).map(([k,m])=>`<button class="${k===ui.metric?"on":""}" data-m="${k}" role="tab" aria-selected="${k===ui.metric}">${m.t}</button>`).join("")}</div>
   <div class="card" style="display:flex;flex-direction:column;gap:10px">
     <div><p class="muted" style="font-size:13px;font-weight:500">${M.full}</p>
     ${last?`<div class="bignum"><b>${M.get(last)}</b><span class="muted num">${M.u}</span><span class="muted" style="font-size:13px">・${md(last.ts)} ${hm(last.ts)}</span></div>`:""}</div>
     ${chart(ui.metric)}
-    <div class="legend"><span><i style="background:var(--dial);outline:1px solid var(--sep)"></i>透析日</span><span><i style="background:var(--band)"></i>個人基準範圍</span>
-    <span><i style="background:var(--green)"></i>綠燈</span><span><i style="background:var(--orange)"></i>黃燈</span><span><i style="background:var(--red)"></i>紅燈</span></div>
+    <div class="legend"><span><i style="background:var(--dial);outline:1px solid var(--sep)"></i>${t("透析日")}</span><span><i style="background:var(--band)"></i>${t("個人基準範圍")}</span>
+    <span><i style="background:var(--green)"></i>${t("綠燈")}</span><span><i style="background:var(--orange)"></i>${t("黃燈")}</span><span><i style="background:var(--red)"></i>${t("紅燈")}</span></div>
   </div>
-  ${group(null, row({t:"個人基準範圍", v:bandTxt}) + row({t:"參考線", v:refTxt}),
-    ui.metric==="lw"?"透析後肺水下降、兩次透析之間慢慢回升是正常的。超出藍色範圍、或越過 35% 虛線，才需要留意。"
-    : ui.metric==="skin"?"皮膚水分一天中會有約 4% 的變動，所以只當輔助參考，不能單獨決定燈號。"
-    :"體重超過目標 3 kg 開始計分，超過 4 kg 計 2 分。")}`;
+  ${group(null, row({t:t("個人基準範圍"), v:bandTxt}) + row({t:t("參考線"), v:refTxt}),
+    ui.metric==="lw"?t("透析後肺水下降、兩次透析之間慢慢回升是正常的。超出藍色範圍、或越過 35% 虛線，才需要留意。")
+    : ui.metric==="skin"?t("皮膚水分一天中會有約 4% 的變動，所以只當輔助參考，不能單獨決定燈號。")
+    :t("體重超過目標 3 kg 開始計分，超過 4 kg 計 2 分。"))}`;
 }
 bind.trend = () => document.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ ui.metric=b.dataset.m; render(); });
 
 /* ---------- 紀錄 ---------- */
 function log(){
   const rows = sorted().reverse();
-  if(!rows.length) return `${title("","紀錄")}<div class="card">還沒有量測紀錄。</div>`;
+  if(!rows.length) return `${title("",t("紀錄"))}<div class="card">${t("還沒有量測紀錄。")}</div>`;
   const list = rows.map(r=>{ const ev=evaluate(r), tags=[];
-    if(r.waited) tags.push("等 15 分"); if(r.remeasured) tags.push("CV 高已重量");
-    if(r.rater && state.profile.rater && r.rater!==state.profile.rater) tags.push("換施測者");
-    const s = `肺水 ${r.lw??"—"}${r.lw!=null?"%":""}・皮膚 ${mean(r.skin).toFixed(1)}・體重 ${r.weight} kg・喘 ${r.dysp}${tags.length?"<br>"+tags.join("、"):""}`;
-    return row({btn:"rec-"+r.id, data:` data-id="${r.id}"`, t:`${md(r.ts)}（${wk(r.ts)}）${hm(r.ts)}・${r.type==="post"?"透析後":"在家"}`, s, v:`${LV[ev.level].t[0]} ${ev.score}`, badge:LV[ev.level].b, chev:true}); }).join("");
-  return `${title(`共 ${rows.length} 筆`,"紀錄")}${group(null, list, "點一筆查看判讀明細。")}`;
+    if(r.waited) tags.push(t("等 15 分")); if(r.remeasured) tags.push(t("CV 高已重量"));
+    if(r.rater && state.profile.rater && r.rater!==state.profile.rater) tags.push(t("換施測者"));
+    const s = t("肺水 {0}{1}・皮膚 {2}・體重 {3} kg・喘 {4}{5}", r.lw??"—", r.lw!=null?"%":"", mean(r.skin).toFixed(1), r.weight, r.dysp, tags.length?"<br>"+tags.join(t("、")):"");
+    return row({btn:"rec-"+r.id, data:` data-id="${r.id}"`, t:recordTime(r.ts, r.type==="post"?t("透析後"):t("在家")), s, v:`${LV[ev.level].t[0]} ${ev.score}`, badge:LV[ev.level].b, chev:true}); }).join("");
+  return `${title(t("共 {0} 筆", rows.length),t("紀錄"))}${group(null, list, t("點一筆查看判讀明細。"))}`;
 }
 bind.log = () => document.querySelectorAll("[data-id]").forEach(el=>el.onclick=()=>{ ui.lastId=Number(el.dataset.id); go("result"); });
 
 /* ---------- 判讀標準 ---------- */
 const PM = (id,t) => `<a href="https://pubmed.ncbi.nlm.nih.gov/${id}/" target="_blank" rel="noopener">${t}</a>`;
-const EV = {g:'<span class="ev b-green">文獻直接支持</span>', y:'<span class="ev b-orange">由文獻推論</span>', w:'<span class="ev b-gray">作業假設</span>'};
+const EV = {get g(){ return `<span class="ev b-green">${t("文獻直接支持")}</span>`; }, get y(){ return `<span class="ev b-orange">${t("由文獻推論")}</span>`; }, get w(){ return `<span class="ev b-gray">${t("作業假設")}</span>`; }};
 function criteria(){
   const sc = [
-    ["肺水 %LW ≥ 35%","+2",`心衰竭出院目標（${PM(38430084,"ReDS-SAFE HF 2024")}）、楔壓升高門檻 34%（${PM(30571493,"Uriel 2018")}）`,"g","b-red"],
-    ["肺水 %LW 26.5–34.9%","+1",`透析病人辨識過量水分 ≥ 2.5 L 的門檻（${PM(40532691,"Chen 2025")}，115 人）`,"g","b-orange"],
-    ["肺水比個人基準高 ≥ 個人門檻","+1",`門檻 = 4 點或 2 倍個人波動，取較大者。4 點超過 ReDS 與 CT 的平均差 3.75 點（${PM(27434357,"Amir 2016")}）`,"y","b-orange"],
-    ["比目標體重多 ≥ 4 kg","+2",`增重 ≥ 4 kg 心血管死亡 HR 1.25（${PM(19171851,"Kalantar-Zadeh 2009")}）`,"g","b-red"],
-    ["比目標體重多 3–4 kg","+1","風險隨增重逐級上升，但沒有單一切點（同上）","y","b-orange"],
-    ["皮膚水分比基準高 ≥ 20%","+1","大於一天內變動約 4%、量測 CV 約 6%；只有在其他指標有分時才計入","w","b-orange"],
-    ["喘的程度 4–6 分（或比平常多 ≥ 2 分）","+2","Caughey 2025 的病人幾乎都是 1 分，沒有切點可依；醫護設定「平常的喘分數」後改用相對值","w","b-red"],
-    ["喘的程度 ≥ 7 分","紅燈","安全考量","w","b-red"],
-    ["血壓、心跳","不計分","Caughey 2025 發現與肺水無相關；只記錄","y","b-gray"]
+    [t("肺水 %LW ≥ 35%"),"+2",t("心衰竭出院目標（{0}）、楔壓升高門檻 34%（{1}）", PM(38430084,"ReDS-SAFE HF 2024"), PM(30571493,"Uriel 2018")),"g","b-red"],
+    [t("肺水 %LW 26.5–34.9%"),"+1",t("透析病人辨識過量水分 ≥ 2.5 L 的門檻（{0}，115 人）", PM(40532691,"Chen 2025")),"g","b-orange"],
+    [t("肺水比個人基準高 ≥ 個人門檻"),"+1",t("門檻 = 4 點或 2 倍個人波動，取較大者。4 點超過 ReDS 與 CT 的平均差 3.75 點（{0}）", PM(27434357,"Amir 2016")),"y","b-orange"],
+    [t("比目標體重多 ≥ 4 kg"),"+2",t("增重 ≥ 4 kg 心血管死亡 HR 1.25（{0}）", PM(19171851,"Kalantar-Zadeh 2009")),"g","b-red"],
+    [t("比目標體重多 3–4 kg"),"+1",t("風險隨增重逐級上升，但沒有單一切點（同上）"),"y","b-orange"],
+    [t("皮膚水分比基準高 ≥ 20%"),"+1",t("大於一天內變動約 4%、量測 CV 約 6%；只有在其他指標有分時才計入"),"w","b-orange"],
+    [t("喘的程度 4–6 分（或比平常多 ≥ 2 分）"),"+2",t("Caughey 2025 的病人幾乎都是 1 分，沒有切點可依；醫護設定「平常的喘分數」後改用相對值"),"w","b-red"],
+    [t("喘的程度 ≥ 7 分"),t("紅燈"),t("安全考量"),"w","b-red"],
+    [t("血壓、心跳"),t("不計分"),t("Caughey 2025 發現與肺水無相關；只記錄"),"y","b-gray"]
   ];
   const ms = [
-    ["身高 155–190 cm、BMI 22–38 才使用 ReDS",`Caughey 2025（廠商限制）；體重過輕會低估（${PM(37778989,"Izumida 2023")}）`,"g"],
-    ["有肋膜積水時，肺水只顯示不計分",`肋膜積水使數值偏高約 6.6 點（${PM(37445449,"Imamura 2023")}）`,"g"],
-    ["ReDS 量 1 次即可；盡量同一人量",`同一人 ICC 0.97、換人 0.68（${PM(35095079,"Hori 2022")}）`,"g"],
-    ["皮膚水分量沒有瘻管側手腕內側，同一點連量 3 次","Caughey 2025 的做法","g"],
-    ["三次讀數 CV > 10% 要重量","Caughey 2025 的 CV 為 5.6–6.4%","y"],
-    ["熱、流汗、洗澡後休息 15 分鐘",`加熱使數值升高 18–30%（${PM(31677329,"Mayrovitz 2020")}）`,"y"],
-    ["每天固定時段量",`0.5 mm 深度從早到晚約降 4%（${PM(39550685,"Mayrovitz 2025")}）`,"g"],
-    ["個人基準 = 最近 6 次透析後平均","沒有文獻","w"]
+    [t("身高 155–190 cm、BMI 22–38 才使用 ReDS"),t("Caughey 2025（廠商限制）；體重過輕會低估（{0}）", PM(37778989,"Izumida 2023")),"g"],
+    [t("有肋膜積水時，肺水只顯示不計分"),t("肋膜積水使數值偏高約 6.6 點（{0}）", PM(37445449,"Imamura 2023")),"g"],
+    [t("ReDS 量 1 次即可；盡量同一人量"),t("同一人 ICC 0.97、換人 0.68（{0}）", PM(35095079,"Hori 2022")),"g"],
+    [t("皮膚水分量沒有瘻管側手腕內側，同一點連量 3 次"),t("Caughey 2025 的做法"),"g"],
+    [t("三次讀數 CV > 10% 要重量"),t("Caughey 2025 的 CV 為 5.6–6.4%"),"y"],
+    [t("熱、流汗、洗澡後休息 15 分鐘"),t("加熱使數值升高 18–30%（{0}）", PM(31677329,"Mayrovitz 2020")),"y"],
+    [t("每天固定時段量"),t("0.5 mm 深度從早到晚約降 4%（{0}）", PM(39550685,"Mayrovitz 2025")),"g"],
+    [t("個人基準 = 最近 6 次透析後平均"),t("沒有文獻"),"w"]
   ];
   const pz = [
-    ["為什麼要個人化",`同樣脫水量，每個人肺水下降的幅度差很多（${PM(35200710,"Fujioka 2022")}）；肺水和體重、血壓的相關都弱（${PM(40532691,"Chen 2025")}、Caughey 2025）`,"g"],
-    ["校正期：前 6 次透析後量測","只用安全底線判讀（肺水 ≥ 35%、體重多 ≥ 4 kg、喘的程度），同時建立個人基準","w"],
-    ["個人門檻 = max(4 點, 2 × 標準差)","4 點是儀器誤差；平常波動大的人門檻自動放寬，減少誤報。平均 ± 2 個標準差是品質管制的常用做法，未在透析病人驗證","y"],
-    ["喘的程度跟平常比","有慢性肺病或心衰竭的人平常可能就 3–4 分；由醫護設定「平常的喘分數」，改看多 2 分以上","w"],
-    ["目標體重由醫護設定","目標體重（乾體重）本來就由透析室依每個人訂定","g"]
+    [t("為什麼要個人化"),t("同樣脫水量，每個人肺水下降的幅度差很多（{0}）；肺水和體重、血壓的相關都弱（{1}、Caughey 2025）", PM(35200710,"Fujioka 2022"), PM(40532691,"Chen 2025")),"g"],
+    [t("校正期：前 6 次透析後量測"),t("只用安全底線判讀（肺水 ≥ 35%、體重多 ≥ 4 kg、喘的程度），同時建立個人基準"),"w"],
+    [t("個人門檻 = max(4 點, 2 × 標準差)"),t("4 點是儀器誤差；平常波動大的人門檻自動放寬，減少誤報。平均 ± 2 個標準差是品質管制的常用做法，未在透析病人驗證"),"y"],
+    [t("喘的程度跟平常比"),t("有慢性肺病或心衰竭的人平常可能就 3–4 分；由醫護設定「平常的喘分數」，改看多 2 分以上"),"w"],
+    [t("目標體重由醫護設定"),t("目標體重（乾體重）本來就由透析室依每個人訂定"),"g"]
   ];
-  return `${title("每一條規則都附上依據","判讀標準")}
-  ${group("燈號",
-    row({t:"綠燈", s:"狀況穩定，照平常喝水", v:"0–1 分", badge:"b-green"}) +
-    row({t:"黃燈", s:"少喝水，隔天同一時段再量；連續兩次黃燈就聯絡透析室", v:"2–3 分", badge:"b-orange"}) +
-    row({t:"紅燈", s:"請今天聯絡透析室；喘 ≥ 7 分直接紅燈", v:"≥ 4 分", badge:"b-red"}))}
-  ${group("計分規則", sc.map(r=>row({t:r[0], s:r[2]+"<br>"+EV[r[3]], v:r[1], badge:r[4]})).join(""))}
-  ${group("個人化規則", pz.map(r=>row({t:r[0], s:r[1]+"<br>"+EV[r[2]]})).join(""))}
-  ${group("量測標準", ms.map(r=>row({t:r[0], s:r[1]+"<br>"+EV[r[2]]})).join(""))}
-  <section class="group"><h2 class="gh">限制</h2><div class="card"><ul style="margin:0;padding-left:1.2em;font-size:15px;display:flex;flex-direction:column;gap:6px">
-    <li>35% 等門檻多數來自心衰竭研究；ReDS 用在透析病人的研究只有 3 篇，約 130 人。</li>
-    <li>26.5% 只來自一篇研究，且那批病人透析前平均就有 27.5%，所以只給 1 分。</li>
-    <li>皮膚介電常數用在全身體液監測，目前只有 Caughey 2025（17 人）一篇。</li>
-    <li>增重本身的風險有限，共識建議搭配客觀的體液量測（${PM(23838386,"Hecking 2013")}）。</li>
-    <li>以上數字取自文獻摘要。這是課堂作業原型，不能當作醫療判斷。</li></ul></div></section>`;
+  return `${title(t("每一條規則都附上依據"),t("判讀標準"))}
+  ${group(t("燈號"),
+    row({t:t("綠燈"), s:t("狀況穩定，照平常喝水"), v:t("0–1 分"), badge:"b-green"}) +
+    row({t:t("黃燈"), s:t("少喝水，隔天同一時段再量；連續兩次黃燈就聯絡透析室"), v:t("2–3 分"), badge:"b-orange"}) +
+    row({t:t("紅燈"), s:t("請今天聯絡透析室；喘 ≥ 7 分直接紅燈"), v:t("≥ 4 分"), badge:"b-red"}))}
+  ${group(t("計分規則"), sc.map(r=>row({t:r[0], s:r[2]+"<br>"+EV[r[3]], v:r[1], badge:r[4]})).join(""))}
+  ${group(t("個人化規則"), pz.map(r=>row({t:r[0], s:r[1]+"<br>"+EV[r[2]]})).join(""))}
+  ${group(t("量測標準"), ms.map(r=>row({t:r[0], s:r[1]+"<br>"+EV[r[2]]})).join(""))}
+  <section class="group"><h2 class="gh">${t("限制")}</h2><div class="card"><ul style="margin:0;padding-left:1.2em;font-size:15px;display:flex;flex-direction:column;gap:6px">
+    <li>${t("35% 等門檻多數來自心衰竭研究；ReDS 用在透析病人的研究只有 3 篇，約 130 人。")}</li>
+    <li>${t("26.5% 只來自一篇研究，且那批病人透析前平均就有 27.5%，所以只給 1 分。")}</li>
+    <li>${t("皮膚介電常數用在全身體液監測，目前只有 Caughey 2025（17 人）一篇。")}</li>
+    <li>${t("增重本身的風險有限，共識建議搭配客觀的體液量測（{0}）。", PM(23838386,"Hecking 2013"))}</li>
+    <li>${t("以上數字取自文獻摘要。這是課堂作業原型，不能當作醫療判斷。")}</li></ul></div></section>`;
 }
 
 /* ---------- 設定 ---------- */
@@ -605,46 +955,46 @@ function setup(){
   const sw = (id,label,on) => `<label class="row" for="${id}"><span class="main"><span class="t" style="display:block">${label}</span></span><input class="switch" id="${id}" type="checkbox" ${on?"checked":""}></label>`;
   const b = baseline({ts:Date.now()+1});
   const staffRows = ui.staff
-    ? inRow("p-t","目標體重",p.target,{unit:"kg"})
-      + sel("p-db","平常的喘分數",[["","未設定（用 4–6 分）"],["1","1 分"],["2","2 分"],["3","3 分"],["4","4 分"],["5","5 分"]],p.dyspBase==null?"":String(p.dyspBase))
-      + sw("p-pe","有肋膜積水",p.effusion)
-      + row({btn:"lock", t:"鎖定醫護設定", tcol:"var(--accent)"})
-    : row({t:"目標體重", v:`${p.target} kg`}) + row({t:"平常的喘分數", v: p.dyspBase==null?"未設定":`${p.dyspBase} 分`}) + row({t:"肋膜積水", v: p.effusion?"有":"無"})
-      + `<label class="row" for="pin"><span class="main"><span class="t" style="display:block">醫護密碼</span><span class="s" style="display:block">示範密碼 1234</span></span><input id="pin" type="password" inputmode="numeric" placeholder="輸入" autocomplete="off"></label>`
-      + row({btn:"unlock", t:"解鎖醫護設定", tcol:"var(--accent)"});
+    ? inRow("p-t",t("目標體重"),p.target,{unit:"kg"})
+      + sel("p-db",t("平常的喘分數"),[["",t("未設定（用 4–6 分）")],["1",t("1 分")],["2",t("2 分")],["3",t("3 分")],["4",t("4 分")],["5",t("5 分")]],p.dyspBase==null?"":String(p.dyspBase))
+      + sw("p-pe",t("有肋膜積水"),p.effusion)
+      + row({btn:"lock", t:t("鎖定醫護設定"), tcol:"var(--accent)"})
+    : row({t:t("目標體重"), v:`${p.target} kg`}) + row({t:t("平常的喘分數"), v: p.dyspBase==null?t("未設定"):t("{0} 分", p.dyspBase)}) + row({t:t("肋膜積水"), v: p.effusion?t("有"):t("無")})
+      + `<label class="row" for="pin"><span class="main"><span class="t" style="display:block">${t("醫護密碼")}</span><span class="s" style="display:block">${t("示範密碼 1234")}</span></span><input id="pin" type="password" inputmode="numeric" placeholder="${t("輸入")}" autocomplete="off"></label>`
+      + row({btn:"unlock", t:t("解鎖醫護設定"), tcol:"var(--accent)"});
   const baseRows = b.calib
-    ? row({t:"狀態", v:`校正期 ${b.n}／${CALIB_N} 次`, strong:true})
-    : row({t:"狀態", v:"已建立", strong:true}) + row({t:"肺水基準", v: b.lw!=null?`${b.lw.toFixed(1)}%`:"—"}) + row({t:"肺水波動（標準差）", v: b.sd!=null?`${b.sd.toFixed(1)} 點`:"—"})
-      + row({t:"肺水個人門檻", s:"4 點或 2 倍波動，取較大者", v:`±${b.thr.toFixed(1)} 點`, strong:true}) + row({t:"皮膚水分基準", v:b.skin.toFixed(1)});
-  return `${topbar({href:"#home",label:"返回首頁",icon:P.back},null)}
-  ${title("","設定")}
+    ? row({t:t("狀態"), v:t("校正期 {0}／{1} 次", b.n, CALIB_N), strong:true})
+    : row({t:t("狀態"), v:t("已建立"), strong:true}) + row({t:t("肺水基準"), v: b.lw!=null?`${b.lw.toFixed(1)}%`:"—"}) + row({t:t("肺水波動（標準差）"), v: b.sd!=null?t("{0} 點", b.sd.toFixed(1)):"—"})
+      + row({t:t("肺水個人門檻"), s:t("4 點或 2 倍波動，取較大者"), v:t("±{0} 點", b.thr.toFixed(1)), strong:true}) + row({t:t("皮膚水分基準"), v:b.skin.toFixed(1)});
+  return `${topbar({href:"#home",label:t("返回首頁"),icon:P.back},null)}
+  ${title("",t("設定"))}
   <form id="pf" class="view" style="gap:22px">
-    ${group("基本資料", inRow("p-h","身高",p.height,{unit:"cm",step:"1"}) + row({t:"BMI（以目標體重計）", v:bmi(p).toFixed(1)}))}
-    ${group("透析", sel("p-s","透析日",[["135","一、三、五"],["246","二、四、六"]],p.schedule) + sel("p-f","瘻管在哪一手",[["left","左手（量右手）"],["right","右手（量左手）"]],p.fistula))}
-    ${group("ReDS", inRow("p-r","平常誰幫忙量",p.rater,{type:"text",ph:"例如：女兒"}) + sw("p-pm","右胸有心律調節器",p.pacerRight),
-      rs.usable ? (p.effusion?"可以使用 ReDS，但肺水只顯示、不計分。":"可以使用 ReDS。") : "不適用 ReDS："+esc(rs.reasons.join("、")))}
-    ${group("醫護設定", staffRows, ui.staff ? "修改後按「儲存設定」。這些項目屬於臨床判斷，由透析室的醫護人員設定。" : "這些項目屬於臨床判斷，由透析室的醫護人員設定。")}
-    ${group("個人基準（自動計算）", baseRows, `用最近 ${CALIB_N} 次透析後的量測計算。前 ${CALIB_N} 次是校正期，只用安全底線判讀。`)}
-    <button class="cap pro" type="submit">儲存設定</button>
+    ${group(t("基本資料"), inRow("p-h",t("身高"),p.height,{unit:"cm",step:"1"}) + row({t:t("BMI（以目標體重計）"), v:bmi(p).toFixed(1)}))}
+    ${group(t("透析"), sel("p-s",t("透析日"),[["135",t("一、三、五")],["246",t("二、四、六")]],p.schedule) + sel("p-f",t("瘻管在哪一手"),[["left",t("左手（量右手）")],["right",t("右手（量左手）")]],p.fistula))}
+    ${group("ReDS", inRow("p-r",t("平常誰幫忙量"),p.rater,{type:"text",ph:t("例如：女兒")}) + sw("p-pm",t("右胸有心律調節器"),p.pacerRight),
+      rs.usable ? (p.effusion?t("可以使用 ReDS，但肺水只顯示、不計分。"):t("可以使用 ReDS。")) : t("不適用 ReDS：")+esc(rs.reasons.join(t("、"))))}
+    ${group(t("醫護設定"), staffRows, ui.staff ? t("修改後按「儲存設定」。這些項目屬於臨床判斷，由透析室的醫護人員設定。") : t("這些項目屬於臨床判斷，由透析室的醫護人員設定。"))}
+    ${group(t("個人基準（自動計算）"), baseRows, t("用最近 {0} 次透析後的量測計算。前 {1} 次是校正期，只用安全底線判讀。", CALIB_N, CALIB_N))}
+    <button class="cap pro" type="submit">${t("儲存設定")}</button>
     <p class="foot" id="saved" role="status"></p>
   </form>
-  ${group("示範資料", row({btn:"demo", t:"載入示範資料", tcol:"var(--accent)"}) + row({btn:"clear", t: ui.resetArm?"再按一次確認清除":"清除所有紀錄", tcol:"var(--red)"}),
-    "示範資料有兩週的紀錄，可以看到「綠燈 → 長間隔第一天黃燈 → 今天紅燈」的過程。")}`;
+  ${group(t("示範資料"), row({btn:"demo", t:t("載入示範資料"), tcol:"var(--accent)"}) + row({btn:"clear", t: ui.resetArm?t("再按一次確認清除"):t("清除所有紀錄"), tcol:"var(--red)"}),
+    t("示範資料有兩週的紀錄，可以看到「綠燈 → 長間隔第一天黃燈 → 今天紅燈」的過程。"))}`;
 }
 bind.setup = () => {
   $("#pf").onsubmit = e => { e.preventDefault(); const p=state.profile;
     p.height=Number($("#p-h").value)||p.height; p.schedule=$("#p-s").value; p.fistula=$("#p-f").value;
     p.rater=$("#p-r").value.trim(); p.pacerRight=$("#p-pm").checked;
     if(ui.staff){ p.target=Number($("#p-t").value)||p.target; const v=$("#p-db").value; p.dyspBase = v==="" ? null : Number(v); p.effusion=$("#p-pe").checked; }
-    save(); render(); $("#saved").textContent="已儲存"; };
-  const un=$("#unlock"); if(un) un.onclick = () => { if($("#pin").value==="1234"){ ui.staff=true; render(); } else { $("#saved").textContent="密碼不正確（示範密碼 1234）"; } };
+    save(); render(); $("#saved").textContent=t("已儲存"); };
+  const un=$("#unlock"); if(un) un.onclick = () => { if($("#pin").value==="1234"){ ui.staff=true; render(); } else { $("#saved").textContent=t("密碼不正確（示範密碼 1234）"); } };
   const lk=$("#lock"); if(lk) lk.onclick = () => { ui.staff=false; render(); };
   $("#demo").onclick = () => { state=demoState(); ui.resetArm=false; save(); go("home"); };
   $("#clear").onclick = () => { if(!ui.resetArm){ ui.resetArm=true; render(); return; }
     ui.resetArm=false; state={ profile:{...state.profile, demo:false}, records:[], nextId:1 }; save(); go("home"); };
 };
 
-render();
+renderLanguage();
 </script>
 </body>
 </html>
